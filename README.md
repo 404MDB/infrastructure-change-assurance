@@ -21,3 +21,12 @@ Expected: HTTP fails during the outage and passes after recovery.
 TCP port 22 reachability does not verify SSH authentication.
 HTTP status does not verify page content or database health.
 Candidate configuration testing and rollback are not implemented yet.
+
+## Configuration
+Edit config/target.json to set the target IP, ports,
+HTTP path, expected status and timeout.
+
+## Exit codes
+- 0: All checks passed
+- 1: A service check failed
+- 2: Configuration error
