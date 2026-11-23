@@ -68,7 +68,7 @@ def check_http():
 
 def main():
     started_at = datetime.now(timezone.utc)
-    print(f"ChangeGuard baseline check: {HOST}")
+    print(f"Infrastructure Change Assurance baseline check: {HOST}")
     results = []
 
     for name, check in [

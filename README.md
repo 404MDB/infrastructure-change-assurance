@@ -1,6 +1,6 @@
-# ChangeGuard
+# Infrastructure Change Assurance
 
-A Linux configuration-impact testing project.
+Dependency-aware configuration validation and safe deployment.
 
 ## Current implementation
 Checks TCP connectivity to port 22 and HTTP status on debian-server.
