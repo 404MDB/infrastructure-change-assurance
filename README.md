@@ -30,3 +30,11 @@ HTTP path, expected status and timeout.
 - 0: All checks passed
 - 1: A service check failed
 - 2: Configuration error
+
+## Reports
+Each valid-config run saves a timestamped JSON file in reports/.
+Reports include UTC timestamps, configuration, check results and durations.
+Generated reports are excluded from Git.
+
+Exit code 3 means the report could not be written.
+

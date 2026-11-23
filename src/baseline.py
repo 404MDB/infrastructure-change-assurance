@@ -1,3 +1,6 @@
+from datetime import datetime, timezone
+import time
+import uuid
 import http.client
 import socket
 import sys
@@ -64,24 +67,54 @@ def check_http():
 
 
 def main():
+    started_at = datetime.now(timezone.utc)
     print(f"ChangeGuard baseline check: {HOST}")
-    all_passed = True
+    results = []
 
     for name, check in [
-        ("SSH port", check_ssh_port),
-        ("Website", check_http),
+        ("ssh_port", check_ssh_port),
+        ("http", check_http),
     ]:
+        started = time.perf_counter()
         passed, detail = check()
+        results.append({
+            "name": name,
+            "passed": passed,
+            "detail": detail,
+            "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+        })
         print(f"[{'PASS' if passed else 'FAIL'}] {name}: {detail}")
-        all_passed = all_passed and passed
 
-    if all_passed:
-        print("BASELINE PASS: both checks passed.")
-        return 0
+    all_passed = all(result["passed"] for result in results)
+    report = {
+        "schema_version": 1,
+        "check_type": "baseline",
+        "started_at": started_at.isoformat(),
+        "finished_at": datetime.now(timezone.utc).isoformat(),
+        "config": config,
+        "baseline_passed": all_passed,
+        "checks": results,
+    }
 
-    print("BASELINE FAIL: investigate before testing a change.")
-    return 1
+    reports_dir = CONFIG_FILE.parent.parent / "reports"
+    filename = (
+        started_at.strftime("baseline-%Y%m%dT%H%M%S%fZ-")
+        + uuid.uuid4().hex[:8] + ".json"
+    )
 
+    try:
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        report_path = reports_dir / filename
+        with report_path.open("x", encoding="utf-8") as file:
+            json.dump(report, file, indent=2)
+            file.write("\n")
+    except OSError as error:
+        print(f"REPORT ERROR: {error}", file=sys.stderr)
+        return 3
+
+    print(f"Report saved: {report_path}")
+    print("BASELINE PASS" if all_passed else "BASELINE FAIL")
+    return 0 if all_passed else 1
 
 if __name__ == "__main__":
     sys.exit(main())
