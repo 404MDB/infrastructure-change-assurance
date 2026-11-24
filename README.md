@@ -101,3 +101,27 @@ sudo bash scripts/test-candidate.sh block-http
 Expected: HTTP blocked, recovery verified, exit 1.
 
 Testing currently covers two reviewed HTTP-only firewall fixtures.
+
+## Candidate experiment reports
+
+Run as the regular user while the lab HTTP fixture is running:
+
+```bash
+python3 src/candidate_report.py allow-http
+python3 src/candidate_report.py block-http
+```
+
+Reports are saved under reports/ and include:
+- Candidate name and SHA-256 fingerprint
+- UTC start and finish timestamps
+- Decision and runner exit code
+- Captured standard output and errors
+
+Exit codes:
+- 0: Candidate passed the required lab HTTP check
+- 1: Candidate blocked; recovery verified
+- 2: Execution or experiment error
+- 3: Report could not be written
+
+The wrapper currently interprets the runner's final messages.
+Reports do not yet contain independent structured stage results.
