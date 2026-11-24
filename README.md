@@ -92,3 +92,12 @@ CANDIDATE BLOCKED and exit code 1 after successful recovery.
 - Results apply to the modeled lab, not full production equivalence.
 - Dependency analysis and live deployment rollback are not implemented.
 - Cleanup traps cannot handle power loss or SIGKILL.
+
+### Candidate selection
+sudo bash scripts/test-candidate.sh allow-http
+Expected: HTTP preserved, recovery verified, exit 0.
+
+sudo bash scripts/test-candidate.sh block-http
+Expected: HTTP blocked, recovery verified, exit 1.
+
+Testing currently covers two reviewed HTTP-only firewall fixtures.

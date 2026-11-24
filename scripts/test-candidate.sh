@@ -2,7 +2,15 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-CANDIDATE="$ROOT_DIR/config/candidates/block-http.nft"
+case "${1:-block-http}" in
+    block-http|allow-http)
+        CANDIDATE="$ROOT_DIR/config/candidates/${1:-block-http}.nft"
+        ;;
+    *)
+        echo "Usage: sudo bash scripts/test-candidate.sh [block-http|allow-http]" >&2
+        exit 2
+        ;;
+esac
 
 if [[ $EUID -ne 0 || $(hostname) != "debian-control" ]]; then
     echo "Run with sudo on debian-control." >&2

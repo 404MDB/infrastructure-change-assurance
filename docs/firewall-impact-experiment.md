@@ -14,3 +14,9 @@ Connected through a veth pair on debian-control.
 ## Scope
 This verifies behavior in an isolated lab.
 It does not prove that a configuration is safe for production.
+
+## Automated verification
+| Candidate | Baseline | After change | Recovery | Exit |
+|---|---|---|---|---|
+| allow-http | 200 | 200 | 200 | 0 |
+| block-http | 200 | Timeout | 200 | 1 |
