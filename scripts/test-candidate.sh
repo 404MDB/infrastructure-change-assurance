@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+CANDIDATE="$ROOT_DIR/config/candidates/block-http.nft"
+
+if [[ $EUID -ne 0 || $(hostname) != "debian-control" ]]; then
+    echo "Run with sudo on debian-control." >&2
+    exit 2
+fi
+
+for tool in ip nft curl; do
+    command -v "$tool" >/dev/null || {
+        echo "Missing command: $tool" >&2
+        exit 2
+    }
+done
+
+ip netns exec ica-client true
+ip netns exec ica-lab nft list ruleset >/dev/null
+
+if ip netns exec ica-lab nft list table inet ica_candidate >/dev/null 2>&1; then
+    echo "Candidate table already exists; inspect it first." >&2
+    exit 2
+fi
+
+http_ok() {
+    local status
+    if status=$(ip netns exec ica-client curl --silent --show-error \
+        --head --output /dev/null --write-out '%{http_code}' \
+        --connect-timeout 3 --max-time 5 http://10.200.1.2/); then
+        echo "HTTP status: $status"
+        [[ $status == "200" ]]
+    else
+        echo "HTTP probe failed." >&2
+        return 1
+    fi
+}
+
+cleanup_needed=0
+cleanup() {
+    if (( cleanup_needed )); then
+        if ip netns exec ica-lab nft delete table inet ica_candidate; then
+            cleanup_needed=0
+        else
+            echo "CLEANUP FAILED: inspect ica-lab rules." >&2
+            return 1
+        fi
+    fi
+}
+
+trap 'cleanup || true' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+echo "1. Checking lab baseline"
+if ! http_ok; then
+    echo "ERROR: baseline unhealthy; candidate not applied."
+    exit 2
+fi
+
+echo "2. Validating candidate syntax"
+ip netns exec ica-lab nft -c -f "$CANDIDATE"
+
+echo "3. Applying candidate inside ica-lab"
+cleanup_needed=1
+ip netns exec ica-lab nft -f "$CANDIDATE"
+
+echo "4. Checking candidate impact"
+candidate_passed=0
+if http_ok; then
+    candidate_passed=1
+fi
+ip netns exec ica-lab nft list table inet ica_candidate
+
+echo "5. Removing candidate"
+if ! cleanup; then
+    exit 3
+fi
+
+echo "6. Checking recovery"
+if ! http_ok; then
+    echo "RECOVERY FAILED"
+    exit 3
+fi
+
+if (( candidate_passed )); then
+    echo "CANDIDATE PASSED: required lab HTTP check preserved."
+    exit 0
+fi
+
+echo "CANDIDATE BLOCKED: required lab HTTP check failed; recovery verified."
+exit 1
