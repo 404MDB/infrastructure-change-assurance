@@ -20,3 +20,18 @@ It does not prove that a configuration is safe for production.
 |---|---|---|---|---|
 | allow-http | 200 | 200 | 200 | 0 |
 | block-http | 200 | Timeout | 200 | 1 |
+
+## Unhealthy baseline safeguard
+
+With the HTTP fixture stopped:
+- The runner reported an unhealthy baseline.
+- The candidate was not applied.
+- The namespace ruleset remained empty.
+- The wrapper returned exit code 2 and saved a report.
+
+After restarting the HTTP fixture:
+- The allow-http candidate passed.
+- Cleanup and recovery checks succeeded.
+- The wrapper returned exit code 0.
+
+This prevents an existing outage from being blamed on the candidate.
