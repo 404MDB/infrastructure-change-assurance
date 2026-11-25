@@ -44,3 +44,21 @@ The lab ruleset remained empty.
 
 The JSON report recorded decision "error", runner exit code 2,
 and no event parsing errors.
+
+## Reporter decision tests
+The event evaluation logic is tested independently of the firewall lab.
+
+Nine automated tests cover:
+- Successful and disruptive candidates.
+- Missing evidence and missing recovery.
+- Failed cleanup or recovery.
+- Exit codes that contradict stage results.
+- Duplicate, out-of-order and malformed events.
+
+Run from the repository root:
+```bash
+python3 -m unittest discover -s tests -p 'test_candidate_report.py' -v
+```
+
+These tests require no sudo or network namespaces.
+All nine tests passed.

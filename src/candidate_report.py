@@ -9,37 +9,14 @@ import uuid
 
 ROOT = Path(__file__).resolve().parent.parent
 
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("candidate", choices=["allow-http", "block-http", "invalid-syntax"])
-    args = parser.parse_args()
-
-    candidate = ROOT / "config" / "candidates" / f"{args.candidate}.nft"
-    started = datetime.now(timezone.utc)
-
-    try:
-        fingerprint = hashlib.sha256(candidate.read_bytes()).hexdigest()
-        result = subprocess.run(
-            ["sudo", "bash", str(ROOT / "scripts" / "test-candidate.sh"),
-             args.candidate],
-            capture_output=True,
-            text=True,
-        )
-    except OSError as error:
-        print(f"RUN ERROR: {error}", file=sys.stderr)
-        return 2
-
-    print(result.stdout, end="")
-    print(result.stderr, end="", file=sys.stderr)
-
+def evaluate_events(stdout, returncode):
     stage_names = ["baseline", "validation", "apply",
                    "impact", "cleanup", "recovery"]
     stages = {name: "not_run" for name in stage_names}
     event_errors = []
     seen = []
 
-    for line in result.stdout.splitlines():
+    for line in stdout.splitlines():
         if not line.startswith("ICA_EVENT "):
             continue
         try:
@@ -72,10 +49,39 @@ def main():
             for name in stage_names if name != "impact"
         )
         if infrastructure_ok:
-            if stages["impact"] == "passed" and result.returncode == 0:
+            if stages["impact"] == "passed" and returncode == 0:
                 decision = "passed"
-            elif stages["impact"] == "failed" and result.returncode == 1:
+            elif stages["impact"] == "failed" and returncode == 1:
                 decision = "blocked"
+
+    return decision, stages, event_errors
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("candidate", choices=["allow-http", "block-http", "invalid-syntax"])
+    args = parser.parse_args()
+
+    candidate = ROOT / "config" / "candidates" / f"{args.candidate}.nft"
+    started = datetime.now(timezone.utc)
+
+    try:
+        fingerprint = hashlib.sha256(candidate.read_bytes()).hexdigest()
+        result = subprocess.run(
+            ["sudo", "bash", str(ROOT / "scripts" / "test-candidate.sh"),
+             args.candidate],
+            capture_output=True,
+            text=True,
+        )
+    except OSError as error:
+        print(f"RUN ERROR: {error}", file=sys.stderr)
+        return 2
+
+    print(result.stdout, end="")
+    print(result.stderr, end="", file=sys.stderr)
+
+    decision, stages, event_errors = evaluate_events(
+        result.stdout, result.returncode
+    )
 
     report = {
         "schema_version": 2,
