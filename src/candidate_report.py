@@ -33,18 +33,52 @@ def main():
     print(result.stdout, end="")
     print(result.stderr, end="", file=sys.stderr)
 
-    lines = result.stdout.splitlines()
-    passed = "CANDIDATE PASSED: required lab HTTP check preserved."
-    blocked = "CANDIDATE BLOCKED: required lab HTTP check failed; recovery verified."
+    stage_names = ["baseline", "validation", "apply",
+                   "impact", "cleanup", "recovery"]
+    stages = {name: "not_run" for name in stage_names}
+    event_errors = []
+    seen = []
+
+    for line in result.stdout.splitlines():
+        if not line.startswith("ICA_EVENT "):
+            continue
+        try:
+            event = json.loads(line[len("ICA_EVENT "):])
+            if not isinstance(event, dict):
+                raise ValueError("Event must be an object")
+            if set(event) != {"stage", "status"}:
+                raise ValueError("Unexpected event fields")
+
+            name = event["stage"]
+            status = event["status"]
+            if not isinstance(name, str) or name not in stages:
+                raise ValueError("Unknown stage")
+            if status not in ("passed", "failed"):
+                raise ValueError("Invalid stage status")
+            if name in seen:
+                raise ValueError("Duplicate stage")
+            if name != stage_names[len(seen)]:
+                raise ValueError("Stages out of order")
+
+            seen.append(name)
+            stages[name] = status
+        except (ValueError, TypeError, IndexError) as error:
+            event_errors.append(str(error))
 
     decision = "error"
-    if result.returncode == 0 and passed in lines:
-        decision = "passed"
-    elif result.returncode == 1 and blocked in lines:
-        decision = "blocked"
+    if not event_errors and seen == stage_names:
+        infrastructure_ok = all(
+            stages[name] == "passed"
+            for name in stage_names if name != "impact"
+        )
+        if infrastructure_ok:
+            if stages["impact"] == "passed" and result.returncode == 0:
+                decision = "passed"
+            elif stages["impact"] == "failed" and result.returncode == 1:
+                decision = "blocked"
 
     report = {
-        "schema_version": 1,
+        "schema_version": 2,
         "check_type": "candidate_experiment",
         "candidate": args.candidate,
         "candidate_sha256": fingerprint,
@@ -54,6 +88,8 @@ def main():
         "runner_exit_code": result.returncode,
         "stdout": result.stdout,
         "stderr": result.stderr,
+	"stages": stages,
+        "event_errors": event_errors,
     }
 
     path = ROOT / "reports" / (

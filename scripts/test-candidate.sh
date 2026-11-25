@@ -61,36 +61,57 @@ trap 'cleanup || true' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+emit_stage() {
+    printf 'ICA_EVENT {"stage":"%s","status":"%s"}\n' "$1" "$2"
+}
+
 echo "1. Checking lab baseline"
 if ! http_ok; then
+    emit_stage baseline failed
     echo "ERROR: baseline unhealthy; candidate not applied."
     exit 2
 fi
+emit_stage baseline passed
 
 echo "2. Validating candidate syntax"
-ip netns exec ica-lab nft -c -f "$CANDIDATE"
+if ! ip netns exec ica-lab nft -c -f "$CANDIDATE"; then
+    emit_stage validation failed
+    exit 2
+fi
+emit_stage validation passed
 
 echo "3. Applying candidate inside ica-lab"
 cleanup_needed=1
-ip netns exec ica-lab nft -f "$CANDIDATE"
+if ! ip netns exec ica-lab nft -f "$CANDIDATE"; then
+    emit_stage apply failed
+    exit 2
+fi
+emit_stage apply passed
 
 echo "4. Checking candidate impact"
 candidate_passed=0
 if http_ok; then
     candidate_passed=1
+    emit_stage impact passed
+else
+    emit_stage impact failed
 fi
 ip netns exec ica-lab nft list table inet ica_candidate
 
 echo "5. Removing candidate"
 if ! cleanup; then
+    emit_stage cleanup failed
     exit 3
 fi
+emit_stage cleanup passed
 
 echo "6. Checking recovery"
 if ! http_ok; then
+    emit_stage recovery failed
     echo "RECOVERY FAILED"
     exit 3
 fi
+emit_stage recovery passed
 
 if (( candidate_passed )); then
     echo "CANDIDATE PASSED: required lab HTTP check preserved."

@@ -7,8 +7,9 @@ and safe deployment.
 - Configurable TCP port and HTTP baseline checks.
 - Timestamped JSON baseline reports.
 - Reusable isolated network lab.
-- Automated testing of a known-bad firewall candidate.
+- Automated testing of two reviewed firewall candidates.
 - Candidate cleanup and HTTP recovery verification.
+- Candidate reports with validated, structured stage results.
 
 ## Environment
 
@@ -21,107 +22,108 @@ Both namespaces run on debian-control:
 - ica-client: 10.200.1.1
 - ica-lab: 10.200.1.2
 
-## Baseline checker
+The namespaces connect through a veth pair.
 
-Run from the project directory:
+## Baseline checks
 
 ```bash
 python3 src/baseline.py
 ```
 
-Edit config/target.json to configure the target IP, ports,
-HTTP path, expected status and timeout.
+Edit config/target.json to configure the target IPv4 address,
+ports, HTTP path, expected status and timeout.
 
-### Exit codes
+### Baseline exit codes
 - 0: Both checks passed.
 - 1: A service check failed.
 - 2: Configuration error.
 - 3: Report could not be written.
 
-## Reports
-Each valid-config baseline run saves a timestamped JSON file
-in reports/. Reports contain UTC timestamps, configuration,
-check results and durations.
+Baseline reports use schema version 1.
 
-Generated reports are excluded from Git.
+## Isolated lab setup
 
-## Isolated firewall experiment
-
-Create the lab after reboot:
+Run after reboot:
 
 ```bash
 sudo bash scripts/lab-setup.sh
 ```
 
-The setup script refuses to overwrite an existing lab.
+The script refuses to overwrite existing lab namespaces or links.
 
-Start the HTTP fixture in one terminal:
+Start the HTTP fixture from the project directory:
 
 ```bash
 sudo ip netns exec ica-lab python3 -m http.server 80 \
   --bind 10.200.1.2 --directory "$PWD/tests/fixtures/web"
 ```
 
-Keep it running. In another terminal, from the project directory:
+Leave this running while testing from a second terminal.
 
-```bash
-sudo bash scripts/test-candidate.sh
-```
+## Candidate testing
 
-The runner:
-1. Verifies baseline HTTP access.
-2. Validates the candidate's syntax.
-3. Applies the candidate inside ica-lab.
-4. Checks HTTP access and displays rule counters.
-5. Removes the candidate table.
-6. Verifies HTTP recovery.
-
-The known-bad block-http.nft candidate should produce
-CANDIDATE BLOCKED and exit code 1 after successful recovery.
-
-## Verified experiments
-- Stopping Nginx produces a failed baseline check.
-- Restoring Nginx restores a passing baseline.
-- Blocking TCP port 80 inside the lab causes an HTTP timeout.
-- Removing the candidate table restores HTTP 200.
-
-## Current limitations
-- TCP port 22 reachability does not verify SSH authentication.
-- HTTP checks do not verify page content or database health.
-- Candidate testing currently uses one reviewed firewall fixture.
-- Results apply to the modeled lab, not full production equivalence.
-- Dependency analysis and live deployment rollback are not implemented.
-- Cleanup traps cannot handle power loss or SIGKILL.
-
-### Candidate selection
-sudo bash scripts/test-candidate.sh allow-http
-Expected: HTTP preserved, recovery verified, exit 0.
-
-sudo bash scripts/test-candidate.sh block-http
-Expected: HTTP blocked, recovery verified, exit 1.
-
-Testing currently covers two reviewed HTTP-only firewall fixtures.
-
-## Candidate experiment reports
-
-Run as the regular user while the lab HTTP fixture is running:
+Run as the regular user:
 
 ```bash
 python3 src/candidate_report.py allow-http
 python3 src/candidate_report.py block-http
 ```
 
-Reports are saved under reports/ and include:
-- Candidate name and SHA-256 fingerprint
-- UTC start and finish timestamps
-- Decision and runner exit code
-- Captured standard output and errors
+Only the child firewall runner uses sudo.
 
-Exit codes:
-- 0: Candidate passed the required lab HTTP check
-- 1: Candidate blocked; recovery verified
-- 2: Execution or experiment error
-- 3: Report could not be written
+### Experiment stages
+1. Check baseline HTTP access.
+2. Validate candidate syntax.
+3. Apply candidate inside ica-lab.
+4. Check HTTP access.
+5. Remove the candidate table.
+6. Verify HTTP recovery.
 
-The wrapper currently interprets the runner's final messages.
-Reports do not yet contain independent structured stage results.
+### Candidate report exit codes
+- 0: Required HTTP check preserved; recovery verified.
+- 1: Required HTTP check failed; recovery verified.
+- 2: Execution, baseline or event-validation error.
+- 3: Report could not be written.
+
+The report also preserves the raw runner exit code.
+
+## Candidate reports
+
+Candidate reports use schema version 2 and contain:
+- Candidate name and SHA-256 fingerprint.
+- UTC start and finish timestamps.
+- Decision and runner exit code.
+- Structured stage results.
+- Event-validation errors.
+- Captured standard output and errors.
+
+Stage statuses are passed, failed or not_run.
+not_run means no valid event was observed.
+
+Decisions use validated stage events and the runner exit code.
+Missing, malformed or inconsistent events produce an error decision.
+
+Reports are saved in reports/ and excluded from Git.
+The candidate fingerprint supports correlation; it is not an
+authenticity guarantee.
+
+## Verified experiments
+
+| Scenario | Outcome | Wrapper exit |
+|---|---|---|
+| allow-http candidate | HTTP preserved; recovery verified | 0 |
+| block-http candidate | HTTP blocked; recovery verified | 1 |
+| HTTP unavailable before testing | Candidate not applied | 2 |
+
+Additional baseline checks were verified by stopping and
+restarting Nginx on debian-server.
+
+## Current limitations
+- TCP port 22 reachability does not verify SSH authentication.
+- HTTP checks do not verify page content or database health.
+- Candidate testing covers two reviewed HTTP-only fixtures.
+- Results apply to the isolated model, not production equivalence.
+- Dependency analysis and live deployment rollback are not implemented.
+- Preflight errors and emergency cleanup are not fully structured.
+- Cleanup traps cannot handle power loss or SIGKILL.
+- Concurrent experiment runs are not supported.
