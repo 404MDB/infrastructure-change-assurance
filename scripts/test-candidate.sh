@@ -1,4 +1,4 @@
- #!/usr/bin/env bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -7,7 +7,7 @@ case "${1:-block-http}" in
         CANDIDATE="$ROOT_DIR/config/candidates/${1:-block-http}.nft"
         ;;
     *)
-        echo "Usage: sudo bash scripts/test-candidate.sh [block-http|allow-http]" >&2
+        echo "Usage: sudo bash scripts/test-candidate.sh [block-http|allow-http|invalid-syntax]" >&2
         exit 2
         ;;
 esac
