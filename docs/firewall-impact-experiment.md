@@ -78,3 +78,27 @@ Requiring both connections exposed the blocked port 8080.
 
 These are simulated service requirements, not yet an actual
 application-to-API dependency.
+
+## Per-service reports and automated tests
+
+Candidate reports now use schema version 3.
+
+Each service result records:
+- Phase: baseline, impact or recovery.
+- Destination port.
+- Passed or failed status.
+- HTTP response status, or null when no response was received.
+- curl exit code.
+
+The parser checks required results, duplicate entries and consistency
+between service outcomes and stage outcomes.
+
+Verified with the updated reporter:
+- allow-http: port 8080 blocked; both services recovered; exit 1.
+- allow-required-services: both services preserved; exit 0.
+- invalid-syntax: rejected before application; exit 2.
+
+All 17 unit tests passed locally and in GitHub Actions.
+
+The two HTTP listeners model required connections.
+An actual application-to-API dependency is not implemented yet.
