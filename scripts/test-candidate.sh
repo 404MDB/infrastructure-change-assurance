@@ -3,11 +3,11 @@ set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 case "${1:-block-http}" in
-    block-http|allow-http|invalid-syntax)
+    block-http|allow-http|allow-required-services|invalid-syntax)
         CANDIDATE="$ROOT_DIR/config/candidates/${1:-block-http}.nft"
         ;;
     *)
-        echo "Usage: sudo bash scripts/test-candidate.sh [block-http|allow-http|invalid-syntax]" >&2
+        echo "Usage: sudo bash scripts/test-candidate.sh [block-http|allow-http|allow-required-services|invalid-syntax]" >&2
         exit 2
         ;;
 esac
@@ -33,16 +33,32 @@ if ip netns exec ica-lab nft list table inet ica_candidate >/dev/null 2>&1; then
 fi
 
 http_ok() {
+    local port="$1"
     local status
+
     if status=$(ip netns exec ica-client curl --silent --show-error \
         --head --output /dev/null --write-out '%{http_code}' \
-        --connect-timeout 3 --max-time 5 http://10.200.1.2/); then
-        echo "HTTP status: $status"
+        --connect-timeout 3 --max-time 5 \
+        "http://10.200.1.2:${port}/"); then
+        echo "HTTP port $port status: $status"
         [[ $status == "200" ]]
     else
-        echo "HTTP probe failed." >&2
+        echo "HTTP port $port probe failed." >&2
         return 1
     fi
+}
+
+required_services_ok() {
+    local port
+    local failed=0
+
+    for port in 80 8080; do
+        if ! http_ok "$port"; then
+            failed=1
+        fi
+    done
+
+    return "$failed"
 }
 
 cleanup_needed=0
@@ -66,7 +82,7 @@ emit_stage() {
 }
 
 echo "1. Checking lab baseline"
-if ! http_ok; then
+if ! required_services_ok; then
     emit_stage baseline failed
     echo "ERROR: baseline unhealthy; candidate not applied."
     exit 2
@@ -90,7 +106,7 @@ emit_stage apply passed
 
 echo "4. Checking candidate impact"
 candidate_passed=0
-if http_ok; then
+if required_services_ok; then
     candidate_passed=1
     emit_stage impact passed
 else
@@ -106,7 +122,7 @@ fi
 emit_stage cleanup passed
 
 echo "6. Checking recovery"
-if ! http_ok; then
+if ! required_services_ok; then
     emit_stage recovery failed
     echo "RECOVERY FAILED"
     exit 3
@@ -114,9 +130,9 @@ fi
 emit_stage recovery passed
 
 if (( candidate_passed )); then
-    echo "CANDIDATE PASSED: required lab HTTP check preserved."
+    echo "CANDIDATE PASSED: required lab HTTP services preserved."
     exit 0
 fi
 
-echo "CANDIDATE BLOCKED: required lab HTTP check failed; recovery verified."
+echo "CANDIDATE BLOCKED: a required lab HTTP service check failed; recovery verified."
 exit 1

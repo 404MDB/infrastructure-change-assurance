@@ -58,7 +58,7 @@ def evaluate_events(stdout, returncode):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("candidate", choices=["allow-http", "block-http", "invalid-syntax"])
+    parser.add_argument("candidate", choices=["allow-http", "block-http", "allow-required-services", "invalid-syntax"])
     args = parser.parse_args()
 
     candidate = ROOT / "config" / "candidates" / f"{args.candidate}.nft"
