@@ -5,7 +5,10 @@ import json
 def load_requirements(path):
     with path.open(encoding="utf-8") as file:
         config = json.load(file)
+    return validate_requirements(config)
 
+
+def validate_requirements(config):
     fields = {
         "schema_version",
         "source_namespace",
