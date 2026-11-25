@@ -7,6 +7,11 @@ import sys
 from datetime import datetime, timezone
 import uuid
 
+if __package__:
+    from .requirements import load_requirements
+else:
+    from requirements import load_requirements
+
 ROOT = Path(__file__).resolve().parent.parent
 
 def evaluate_events(stdout, returncode):
@@ -142,6 +147,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("candidate", choices=["allow-http", "block-http", "allow-required-services", "invalid-syntax"])
     args = parser.parse_args()
+
+    try:
+        requirements = load_requirements(
+            ROOT / "config" / "requirements.json"
+        )
+    except (OSError, ValueError, TypeError) as error:
+        print(f"REQUIREMENTS ERROR: {error}", file=sys.stderr)
+        return 2
 
     candidate = ROOT / "config" / "candidates" / f"{args.candidate}.nft"
     started = datetime.now(timezone.utc)
