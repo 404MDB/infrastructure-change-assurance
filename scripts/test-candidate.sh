@@ -33,27 +33,42 @@ if ip netns exec ica-lab nft list table inet ica_candidate >/dev/null 2>&1; then
 fi
 
 http_ok() {
-    local port="$1"
+    local phase="$1"
+    local port="$2"
     local status
+    local curl_exit=0
+    local outcome="failed"
+    local http_status="null"
 
     if status=$(ip netns exec ica-client curl --silent --show-error \
         --head --output /dev/null --write-out '%{http_code}' \
         --connect-timeout 3 --max-time 5 \
         "http://10.200.1.2:${port}/"); then
         echo "HTTP port $port status: $status"
-        [[ $status == "200" ]]
+        if [[ $status =~ ^[1-5][0-9][0-9]$ ]]; then
+            http_status="$status"
+        fi
+        if [[ $status == "200" ]]; then
+            outcome="passed"
+        fi
     else
-        echo "HTTP port $port probe failed." >&2
-        return 1
+        curl_exit=$?
+        echo "HTTP port $port probe failed (curl exit $curl_exit)." >&2
     fi
+
+    printf 'ICA_SERVICE {"phase":"%s","port":%s,"status":"%s","http_status":%s,"curl_exit_code":%s}\n' \
+        "$phase" "$port" "$outcome" "$http_status" "$curl_exit"
+
+    [[ $outcome == "passed" ]]
 }
 
 required_services_ok() {
+    local phase="$1"
     local port
     local failed=0
 
     for port in 80 8080; do
-        if ! http_ok "$port"; then
+        if ! http_ok "$phase" "$port"; then
             failed=1
         fi
     done
@@ -82,7 +97,7 @@ emit_stage() {
 }
 
 echo "1. Checking lab baseline"
-if ! required_services_ok; then
+if ! required_services_ok baseline; then
     emit_stage baseline failed
     echo "ERROR: baseline unhealthy; candidate not applied."
     exit 2
@@ -106,7 +121,7 @@ emit_stage apply passed
 
 echo "4. Checking candidate impact"
 candidate_passed=0
-if required_services_ok; then
+if required_services_ok impact; then
     candidate_passed=1
     emit_stage impact passed
 else
@@ -122,7 +137,7 @@ fi
 emit_stage cleanup passed
 
 echo "6. Checking recovery"
-if ! required_services_ok; then
+if ! required_services_ok recovery; then
     emit_stage recovery failed
     echo "RECOVERY FAILED"
     exit 3

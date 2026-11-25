@@ -22,4 +22,4 @@ jobs:
           python-version: "3.13"
 
       - name: Run reporter tests
-        run: python3 -m unittest discover -s tests -p 'test_candidate_report.py' -v
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v
