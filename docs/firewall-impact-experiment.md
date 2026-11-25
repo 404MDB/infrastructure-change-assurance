@@ -35,3 +35,12 @@ After restarting the HTTP fixture:
 - The wrapper returned exit code 0.
 
 This prevents an existing outage from being blamed on the candidate.
+
+## Invalid configuration test
+The invalid-syntax fixture deliberately contains an unclosed table.
+The baseline passed, but nftables syntax validation failed.
+Application, impact testing, cleanup and recovery were not reached.
+The lab ruleset remained empty.
+
+The JSON report recorded decision "error", runner exit code 2,
+and no event parsing errors.

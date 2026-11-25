@@ -1,9 +1,9 @@
-#!/usr/bin/env bash
+ #!/usr/bin/env bash
 set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 case "${1:-block-http}" in
-    block-http|allow-http)
+    block-http|allow-http|invalid-syntax)
         CANDIDATE="$ROOT_DIR/config/candidates/${1:-block-http}.nft"
         ;;
     *)

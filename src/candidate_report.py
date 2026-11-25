@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("candidate", choices=["allow-http", "block-http"])
+    parser.add_argument("candidate", choices=["allow-http", "block-http", "invalid-syntax"])
     args = parser.parse_args()
 
     candidate = ROOT / "config" / "candidates" / f"{args.candidate}.nft"
